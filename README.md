@@ -37,7 +37,67 @@ flowchart LR
     style C fill:#98FB98  
     style D fill:#FFA07A  
     style E fill:#9370DB  
-```  
+```
+---
+
+```mermaid
+graph TD
+    A[Orchestrator] -->|GOAP Planning| B[Data Collector]
+    A -->|GOAP Planning| C[Analytics Engine]
+    A -->|GOAP Planning| D[Audience Research]
+    A -->|GOAP Planning| E[Niche Evaluator]
+    A -->|GOAP Planning| F[Decision Maker]
+    
+    B -->|market.raw_data| M[Message Broker]
+    C -->|market.analyzed_data| M
+    D -->|audience.insights| M
+    E -->|niche.evaluations| M
+    F -->|niche.recommendation| M
+    
+    M -->|Events| A
+    M -->|Events| C
+    M -->|Events| D
+    M -->|Events| E
+    M -->|Events| F
+    
+    style A fill:#f9f,stroke:#333
+    style M fill:#bbf,stroke:#333
+```
+
+---
+
+```mermaid
+sequenceDiagram
+    participant O as Orchestrator
+    participant M as Message Broker
+    participant DC as Data Collector
+    participant AE as Analytics Engine
+    participant AR as Audience Research
+    participant NE as Niche Evaluator
+    participant DM as Decision Maker
+    
+    O->>M: orchestrator.command (collect_data)
+    M->>DC: orchestrator.command
+    DC->>M: market.raw_data
+    M->>O: market.raw_data (update state)
+    M->>AE: market.raw_data
+    
+    AE->>M: market.analyzed_data
+    M->>O: market.analyzed_data (update state)
+    M->>AR: market.analyzed_data
+    M->>NE: market.analyzed_data
+    
+    AR->>M: audience.insights
+    M->>O: audience.insights (update state)
+    M->>NE: audience.insights
+    
+    NE->>M: niche.evaluations
+    M->>O: niche.evaluations (update state)
+    M->>DM: niche.evaluations
+    
+    DM->>M: niche.recommendation
+    M->>O: niche.recommendation (update state)
+```
 
 1. **Scout Bots** (Data Gatherers)  
    - Marketplace API integration  
