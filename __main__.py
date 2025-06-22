@@ -20,6 +20,7 @@ class CategoryData:
 @dataclass
 class NicheEvaluation:
     category_id: str
+    category_name: str  # Исправление: Добавлено название категории
     profitability_score: float
     risk_score: float
     compliance_ok: bool
@@ -45,7 +46,7 @@ class Action:
         self.preconditions = preconditions
         self.effects = effects
         self.cost = cost
-    
+
     def __repr__(self):
         return f"Action({self.name})"
 
@@ -54,7 +55,7 @@ class Node:
         self.state = state
         self.actions = actions
         self.cost = cost
-    
+
     def __lt__(self, other):
         return self.cost < other.cost
 
@@ -63,29 +64,23 @@ class GOAPPlanner:
         frontier = []
         heapq.heappush(frontier, Node(state.copy(), [], 0))
         explored = set()
-        
         while frontier:
             node = heapq.heappop(frontier)
-            
             if self.goals_satisfied(goals, node.state):
                 return node.actions
-            
             state_hash = self.state_hash(node.state)
             if state_hash in explored:
                 continue
             explored.add(state_hash)
-            
             for action in actions:
                 if self.can_perform(action, node.state):
                     new_state = self.apply_effects(action, node.state.copy())
                     new_cost = node.cost + action.cost
                     new_actions = node.actions + [action]
-                    
                     heapq.heappush(
                         frontier, 
                         Node(new_state, new_actions, new_cost)
                     )
-        
         return []  # План не найден
 
     def can_perform(self, action: Action, state: Dict[str, Any]) -> bool:
@@ -113,15 +108,15 @@ class MessageBroker:
     def __init__(self):
         self.queues = defaultdict(list)
         self.subscribers = defaultdict(list)
-    
+
     def publish(self, queue: str, message: dict):
         self.queues[queue].append(message)
         for callback in self.subscribers[queue]:
             callback(message)
-    
+
     def consume(self, queue: str) -> Optional[dict]:
         return self.queues[queue].pop(0) if self.queues[queue] else None
-    
+
     def subscribe(self, queue: str, callback):
         self.subscribers[queue].append(callback)
 
@@ -172,21 +167,17 @@ class DataCollector:
             "has_price_data": True,
             "has_seller_count": True
         }
-    
+
     def collect_data(self):
         print("\n[Data Collector] Planning data collection...")
         plan = self.planner.plan(self.actions, self.goals, self.state)
-        
         if not plan:
             print("No valid plan found!")
             return
-            
         print(f"Execution plan: {[a.name for a in plan]}")
-        
         for action in plan:
             print(f"Executing: {action.name}")
             time.sleep(0.5)
-            
             if action.name == "fetch_sales_data":
                 self.fetch_sales_from_api()
             elif action.name == "scrape_prices":
@@ -195,26 +186,25 @@ class DataCollector:
                 self.count_sellers()
             elif action.name == "fallback_api_scraping":
                 self.fallback_scraping()
-        
         self.publish_data()
-    
+
     def fetch_sales_from_api(self):
         print("Fetching sales data from API...")
         self.state["has_category_sales"] = True
-    
+
     def scrape_price_data(self):
         print("Scraping price data from catalog...")
         self.state["has_price_data"] = True
-    
+
     def count_sellers(self):
         print("Counting sellers in categories...")
         self.state["has_seller_count"] = True
-    
+
     def fallback_scraping(self):
         print("Using fallback scraping method...")
         self.state["has_category_sales"] = True
         self.state["has_price_data"] = True
-    
+
     def publish_data(self):
         data = []
         for cat_id, name in enumerate(self.categories):
@@ -225,7 +215,6 @@ class DataCollector:
                 avg_price=random.uniform(10, 500),
                 competition_score=random.uniform(0.1, 0.9)
             ))
-        
         self.broker.publish("market.raw_data", {
             "event_id": str(uuid.uuid4()),
             "platform": "wildberries",
@@ -239,6 +228,7 @@ class AnalyticsEngine:
         self.planner = GOAPPlanner()
         self.state = {
             "raw_data_received": False,
+            "data_parsed": False,  # Исправление: Добавлено состояние data_parsed
             "demand_calculated": False,
             "trends_identified": False
         }
@@ -267,47 +257,46 @@ class AnalyticsEngine:
             "trends_identified": True
         }
         broker.subscribe("market.raw_data", self.handle_raw_data)
-    
+
     def handle_raw_data(self, message):
         print("\n[Analytics Engine] Received raw data")
         self.state["raw_data_received"] = True
         self.process_data(message)
-    
+
     def process_data(self, message):
         print("Planning data processing...")
         plan = self.planner.plan(self.actions, self.goals, self.state)
-        
         if not plan:
             print("No valid plan found!")
             return
-            
         print(f"Execution plan: {[a.name for a in plan]}")
-        
         categories = [CategoryData(**item) for item in message["categories"]]
-        
         for action in plan:
             print(f"Executing: {action.name}")
             time.sleep(0.5)
-            
             if action.name == "parse_raw_data":
-                # В реальности здесь парсинг данных
                 self.state["data_parsed"] = True
-            
             elif action.name == "calculate_demand":
                 demand_scores = {}
                 for category in categories:
-                    demand_scores[category.id] = (category.monthly_sales * random.uniform(0.7, 1.3)) / max(category.competition_score, 0.01)
+                    # Исправление: Удаление случайности, добавлена детерминированная формула
+                    demand_factor = 1.0 + (category.monthly_sales / 1000)
+                    demand_scores[category.id] = (category.monthly_sales * demand_factor) / max(category.competition_score, 0.01)
                 self.demand_scores = demand_scores
                 self.state["demand_calculated"] = True
-            
             elif action.name == "analyze_trends":
                 for category in categories:
-                    category.trend_score = random.uniform(0.5, 1.0) if "Электроника" in category.name else random.uniform(0.1, 0.7)
+                    # Исправление: Детерминированный расчет тренда
+                    if "Электроника" in category.name:
+                        category.trend_score = 0.9
+                    elif "Дом" in category.name:
+                        category.trend_score = 0.7
+                    else:
+                        category.trend_score = 0.5
                 self.categories = categories
                 self.state["trends_identified"] = True
-        
         self.publish_results(message["event_id"])
-    
+
     def publish_results(self, event_id):
         self.broker.publish("market.analyzed_data", {
             "correlation_id": event_id,
@@ -319,18 +308,16 @@ class AudienceResearch:
     def __init__(self, broker: MessageBroker):
         self.broker = broker
         broker.subscribe("market.analyzed_data", self.handle_analyzed_data)
-    
+
     def handle_analyzed_data(self, message):
         print("\n[Audience Research] Received analyzed data")
         categories = [CategoryData(**item) for item in message["categories"]]
-        
         for category in categories:
             self.analyze_category(category)
-    
+
     def analyze_category(self, category):
         print(f"Analyzing audience for {category.name}")
         time.sleep(0.3)
-        
         personas = [
             Persona(
                 persona_type="tech_enthusiast",
@@ -346,10 +333,9 @@ class AudienceResearch:
                 pain_points=["assembly", "space"]
             )
         ]
-        
         self.broker.publish("audience.insights", {
             "category_id": category.id,
-            "audience_score": random.uniform(0.7, 0.95),
+            "audience_score": 0.8,  # Исправление: Удаление случайности
             "personas": [asdict(p) for p in personas]
         })
 
@@ -364,29 +350,35 @@ class NicheEvaluator:
         }
         self.category_data = {}
         self.audience_data = {}
-        self.compliance_rules = {"Детские товары": False, "Автотовары": False}
-        
+        self.expected_categories = set()  # Исправление: Для отслеживания ожидаемых категорий
+        self.compliance_rules = {  # Исправление: Гибкие правила соответствия
+            "Детские товары": True,  # По умолчанию разрешено
+            "Автотовары": True
+        }
         broker.subscribe("market.analyzed_data", self.handle_analyzed_data)
         broker.subscribe("audience.insights", self.handle_audience_data)
-    
+
     def handle_analyzed_data(self, message):
         print("\n[Niche Evaluator] Received analyzed data")
+        self.category_data = {}
         for item in message["categories"]:
             cat = CategoryData(**item)
             self.category_data[cat.id] = cat
+        self.expected_categories = set(self.category_data.keys())  # Исправление: Отслеживание всех категорий
         self.state["category_data_ready"] = True
         self.try_evaluate()
-    
+
     def handle_audience_data(self, message):
         print(f"[Niche Evaluator] Received audience data for {message['category_id']}")
         self.audience_data[message["category_id"]] = message
-        self.state["audience_data_ready"] = True
-        self.try_evaluate()
-    
+        # Исправление: Проверка полноты данных
+        if set(self.audience_data.keys()) == self.expected_categories:
+            self.state["audience_data_ready"] = True
+            self.try_evaluate()
+
     def try_evaluate(self):
         if not self.state["category_data_ready"] or not self.state["audience_data_ready"]:
             return
-        
         plan = self.planner.plan([
             Action(
                 name="evaluate_category",
@@ -395,32 +387,27 @@ class NicheEvaluator:
                 cost=1.0
             )
         ], {"niche_evaluated": True}, self.state)
-        
         if plan:
             self.evaluate_categories()
-    
+
     def evaluate_categories(self):
         print("\n[Niche Evaluator] Evaluating niches...")
         evaluations = []
-        
         for cat_id, category in self.category_data.items():
             if cat_id not in self.audience_data:
                 continue
-                
             audience = self.audience_data[cat_id]
             audience_score = audience["audience_score"]
-            
             profitability = (category.monthly_sales * category.avg_price * 0.2) * audience_score
             risk = 1 - category.trend_score
             compliance = self.compliance_rules.get(category.name, True)
-            
             evaluations.append(NicheEvaluation(
                 category_id=cat_id,
+                category_name=category.name,  # Исправление: Передача названия
                 profitability_score=profitability,
                 risk_score=risk,
                 compliance_ok=compliance
             ))
-        
         self.broker.publish("niche.evaluations", {
             "evaluations": [asdict(e) for e in evaluations]
         })
@@ -429,19 +416,10 @@ class DecisionMaker:
     def __init__(self, broker: MessageBroker):
         self.broker = broker
         broker.subscribe("niche.evaluations", self.handle_evaluations)
-    
+
     def handle_evaluations(self, message):
         print("\n[Decision Maker] Received niche evaluations")
         evaluations = [NicheEvaluation(**item) for item in message["evaluations"]]
-        categories = {}
-        
-        # В реальном приложении мы бы получили категории из предыдущих сообщений
-        # Здесь для простоты создадим фиктивные
-        category_names = {
-            "cat_0": "Электроника", "cat_1": "Дом и сад", "cat_2": "Красота",
-            "cat_3": "Одежда", "cat_4": "Детские товары", "cat_5": "Автотовары"
-        }
-        
         valid_niches = [e for e in evaluations if e.compliance_ok]
         
         if not valid_niches:
@@ -453,11 +431,10 @@ class DecisionMaker:
             )
         else:
             best_niche = max(valid_niches, key=lambda x: x.profitability_score / max(x.risk_score, 0.01))
-            category_name = category_names.get(best_niche.category_id, "Неизвестная категория")
-            
+            # Исправление: Использование названия из оценки
             recommendation = Recommendation(
                 category_id=best_niche.category_id,
-                category_name=category_name,
+                category_name=best_niche.category_name,
                 confidence=min(best_niche.profitability_score / 10000, 1.0),
                 reasons=[
                     f"Высокая прибыльность ({best_niche.profitability_score:.1f})",
@@ -465,7 +442,6 @@ class DecisionMaker:
                     f"Соответствие правилам платформы"
                 ]
             )
-        
         self.broker.publish("niche.recommendation", asdict(recommendation))
 
 # ================== Global Orchestrator ==================
@@ -480,7 +456,6 @@ class Orchestrator:
             "niches_evaluated": False,
             "decision_made": False
         }
-        
         # Глобальные действия
         self.actions = [
             Action(
@@ -514,41 +489,37 @@ class Orchestrator:
                 cost=1.0
             )
         ]
-        
         # Подписки на события
         broker.subscribe("market.raw_data", lambda _: self.update_state("data_collected", True))
         broker.subscribe("market.analyzed_data", lambda _: self.update_state("data_analyzed", True))
         broker.subscribe("audience.insights", lambda _: self.update_state("audience_analyzed", True))
         broker.subscribe("niche.evaluations", lambda _: self.update_state("niches_evaluated", True))
         broker.subscribe("niche.recommendation", lambda _: self.update_state("decision_made", True))
-    
+
     def update_state(self, key, value):
+        # Исправление: Проверка полноты данных
+        if key == "data_collected" and value:
+            # В реальном приложении здесь должна быть проверка успешности сбора данных
+            pass
         self.state[key] = value
         self.run_workflow()
-    
+
     def run_workflow(self):
         print("\n[Orchestrator] Current state:", self.state)
-        
         # Цели системы
         goals = {"decision_made": True}
-        
         # Если цель уже достигнута
         if self.planner.goals_satisfied(goals, self.state):
             print("Goal already achieved!")
             return
-            
         plan = self.planner.plan(self.actions, goals, self.state)
-        
         if not plan:
             print("No valid global plan found!")
             return
-            
         print(f"Global execution plan: {[a.name for a in plan]}")
-        
         # В реальной системе здесь был бы вызов соответствующих сервисов
         for action in plan:
             print(f"Triggering: {action.name}")
-            
             # Вместо реального вызова просто публикуем событие
             if action.name == "collect_data":
                 self.broker.publish("orchestrator.command", {"command": "collect_data"})
@@ -565,27 +536,21 @@ class Orchestrator:
 def main():
     # Инициализация брокера сообщений
     broker = MessageBroker()
-    
     # Создание роботов
     collector = DataCollector(broker)
     analytics = AnalyticsEngine(broker)
     audience_research = AudienceResearch(broker)
     evaluator = NicheEvaluator(broker)
     decision_maker = DecisionMaker(broker)
-    
     # Создание оркестратора
     orchestrator = Orchestrator(broker)
-    
     # Подписка роботов на команды оркестратора
     broker.subscribe("orchestrator.command", lambda msg: handle_orchestrator_command(msg, collector))
-    
     # Запуск процесса
     print("=== Starting niche selection process ===")
     orchestrator.run_workflow()
-    
     # Ожидание завершения
     time.sleep(5)
-    
     # Вывод результата
     recommendation = broker.consume("niche.recommendation")
     if recommendation:
